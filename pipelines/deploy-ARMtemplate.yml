@@ -605,29 +605,28 @@ stages:
               script: |
                 TARGET_BRANCH="master"
                 
-                # Write your commands here
                 set -e
 
-                # Clone the current release branch version to local: 
+                # Clone the current release branch version to local
                 git clone -b "$(Branch)" --single-branch "https://${DEVOPS_REPO_USERNAME}:${DEVOPS_PERSONAL_ACCESS_TOKEN}@dev.azure.com/AED-E2E-Experiences/UnifiedEdgeScenarios/_git/UnifiedEdgeScenarios" 
 
                 cd UnifiedEdgeScenarios/
 
-                # Remove the current remote origin from devops repo and set it to GitHub repo which is fork from target GitHub repo:
+                # Remove the current remote origin from devops repo and set it to GitHub repo which is fork from target GitHub repo
                 git remote rm origin
                 git remote add origin https://github.com/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}.git
                 git remote set-url origin "https://${GITHUB_REPO_USERNAME}:${GITHUB_ACCESS_TOKEN}@github.com/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}.git
 
-                # Push the current release branch changes to GitHub repo, it will create a new branch with current branch name:
+                # Push the current release branch changes to GitHub repo, it will create a new branch with current branch name
                 git push origin "$(Branch)"
 
-                # Get all remote branches:
+                # Get all remote branches
                 git fetch
 
-                # Raise the Pull request to target GitHub repo from this new branch:
+                # Raise the Pull request to target GitHub repo from this new branch
                 curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$GITHUB_REPO_USERNAME"':'"$(Branch)"'","base":"'"${TARGET_BRANCH}"'", "title":"'"$(Branch)"' version"}'
 
-                # Remove current branch files from local:
+                # Remove current branch files from local
                 cd ..
                 sudo rm -rf UnifiedEdgeScenarios/
 
