@@ -14,7 +14,7 @@ pool:
   default
 
 variables:
-  Branch: '$(Build.SourceBranchName)'
+  Branch: '$(Build.SourceBranch)'
   buildSuffix: '$(Build.BuildNumber)' 
   ${{ if startsWith(variables['Build.SourceBranchName'], 'release') }}:
     Variable_Group: 'ARMTemplate_ReleaseEnvironment'
