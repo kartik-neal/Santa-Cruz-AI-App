@@ -60,15 +60,6 @@ stages:
                   git remote set-url origin "https://${GITHUB_REPO_USERNAME}:${GITHUB_ACCESS_TOKEN}@github.com/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}.git"
                   
 
-                  # Update README.md for latest stable version of deployment link
-                  # echo "Updating the README.md for latest arm deployment version"
-                  # DEPLOY_AZURE_LINK="https://portal.azure.com/#create/Microsoft.Template/uri/https://unifiededgescenarios.blob.core.windows.net/arm-template/$(buildSuffix)/azuredeploy-$(buildSuffix).json"
-                  # sed -i -e 's|\((https://aka.ms/deploytoazurebutton)](\).*|\1'"$DEPLOY_AZURE_LINK"'\)|g' "README.md"
-
-                  # # Commit the changes
-                  # echo "Commit the changes done in README.md"
-                  # git commit -a -m "Updated README.md with latest deployment link"
-
                   # Push the current release branch changes to GitHub repo, it will create a new branch with current branch name
                   echo "Upload files to github in branch ${BRANCH_NAME}"
                   git push origin "${BRANCH_NAME}"
