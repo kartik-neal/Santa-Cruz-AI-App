@@ -62,7 +62,7 @@ stages:
 
                   # Update README.md for latest stable version of deployment link
                   # echo "Updating the README.md for latest arm deployment version"
-                  # DEPLOY_AZURE_LINK="https://portal.azure.com/#create/Microsoft.Template/uri/https://unifiededgescenarios.blob.core.windows.net/arm-template/$(buildsuffix)/azuredeploy-$(buildsuffix).json"
+                  # DEPLOY_AZURE_LINK="https://portal.azure.com/#create/Microsoft.Template/uri/https://unifiededgescenarios.blob.core.windows.net/arm-template/$(buildSuffix)/azuredeploy-$(buildSuffix).json"
                   # sed -i -e 's|\((https://aka.ms/deploytoazurebutton)](\).*|\1'"$DEPLOY_AZURE_LINK"'\)|g' "README.md"
 
                   # # Commit the changes
