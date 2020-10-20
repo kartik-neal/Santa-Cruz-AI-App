@@ -1,0 +1,24 @@
+# CI disabled
+trigger: none
+
+# Trigger after completion of Build ARM Template Pipeline
+resources:
+  pipelines:
+  - pipeline: build
+    project: UnifiedEdgeScenarios
+    source: Release ARM Template
+    trigger:
+      branches:
+        include:
+          - releases/*
+          - releaseTest
+      enabled: true
+
+steps:
+- script: echo Hello, world!
+  displayName: 'Run a one-line script'
+
+- script: |
+    echo Add other tasks to build, test, and deploy your project.
+    echo See https://aka.ms/yaml
+  displayName: 'Run a multi-line script'
