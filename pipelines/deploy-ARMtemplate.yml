@@ -14,7 +14,6 @@ pool:
   default
 
 variables:
-  Branch: '$(Build.SourceBranch)'
   buildSuffix: '$(Build.BuildNumber)' 
   ${{ if startsWith(variables['Build.SourceBranchName'], 'release') }}:
     Variable_Group: 'ARMTemplate_ReleaseEnvironment'
@@ -585,71 +584,3 @@ stages:
                   --name azuredeploy-latest.json
               workingDirectory: '$(System.DefaultWorkingDirectory)/arm-deployment-bundle'
 
-
-  - deployment: 'GitHubRelease'
-    displayName: 'Release new version to GitHub'
-    environment: 'ApproveGitHubRelease'
-    condition: startsWith(variables['Build.SourceBranchName'], 'release')
-    variables:
-      - group: ${{variables.Variable_Group}}
-    strategy:
-      runOnce:
-        deploy:
-          steps: 
-          - checkout: none
-
-          - task: Bash@3
-            env:
-              DEVOPS_PERSONAL_ACCESS_TOKEN: $(DEVOPS_PERSONAL_ACCESS_TOKEN)
-              GITHUB_ACCESS_TOKEN: $(GITHUB_ACCESS_TOKEN)
-            inputs:
-              targetType: 'inline'
-              script: |
-                TARGET_BRANCH="master"
-                
-                set -e
-                
-                if [ -d "UnifiedEdgeScenarios" ]; then
-                  echo "Deleting the directory as it already exists"
-                  sudo rm -rf UnifiedEdgeScenarios
-                fi
-
-                BRANCH_NAME=$(echo $(Branch) | cut -d'/' -f 3- )
-                
-                # Clone the current release branch version to local
-                git clone -b "${BRANCH_NAME}" --single-branch "https://${DEVOPS_REPO_USERNAME}:${DEVOPS_PERSONAL_ACCESS_TOKEN}@dev.azure.com/AED-E2E-Experiences/UnifiedEdgeScenarios/_git/UnifiedEdgeScenarios"
-                echo "Cloned ${BRANCH_NAME} to local"
-                
-                cd UnifiedEdgeScenarios/
-
-                # Remove the current remote origin from devops repo and set it to GitHub repo which is fork from target GitHub repo
-                git remote rm origin
-                git remote add origin "https://github.com/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}.git"
-                git remote set-url origin "https://${GITHUB_REPO_USERNAME}:${GITHUB_ACCESS_TOKEN}@github.com/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}.git"
-                
-
-                # Update README.md for latest stable version of deployment link
-                # echo "Updating the README.md for latest arm deployment version"
-                # DEPLOY_AZURE_LINK="https://portal.azure.com/#create/Microsoft.Template/uri/https://unifiededgescenarios.blob.core.windows.net/arm-template/$(buildsuffix)/azuredeploy-$(buildsuffix).json"
-                # sed -i -e 's|\((https://aka.ms/deploytoazurebutton)](\).*|\1'"$DEPLOY_AZURE_LINK"'\)|g' "README.md"
-
-                # # Commit the changes
-                # echo "Commit the changes done in README.md"
-                # git commit -a -m "Updated README.md with latest deployment link"
-
-                # Push the current release branch changes to GitHub repo, it will create a new branch with current branch name
-                echo "Upload files to github in branch ${BRANCH_NAME}"
-                git push origin "${BRANCH_NAME}"
-
-                # Get all remote branches
-                git fetch
-
-                # Raise the Pull request to target GitHub repo from this new branch
-                echo "Raising PR from head to base repo \"${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}\""
-                curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$GITHUB_REPO_USERNAME"':'"${BRANCH_NAME}"'","base":"'"${TARGET_BRANCH}"'", "title":"'"${BRANCH_NAME}"' version"}'
-
-                # Remove current branch files from local
-                cd ..
-                sudo rm -rf UnifiedEdgeScenarios/
-
-              workingDirectory: '$(System.DefaultWorkingDirectory)'
