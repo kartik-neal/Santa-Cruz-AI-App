@@ -104,21 +104,32 @@ stages:
                   echo "Raising PR from branch \"${BRANCH_NAME}\" to master in GitHub repo \"${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}\""
                   PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"${BRANCH_NAME}"'","base":"'"${TARGET_BRANCH}"'", "title":"'"${PR_TITLE}"'","body":"'"${PR_DESCRIPTION}"'"}')
                   PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
-                  # CMT: Handle scenario where PR_URL is null
+                  
+                  # Checking whether PR is created by checking non-empty value for PR_URL from PR_RESPONSE
+                  if [ -z "$PR_URL" ]; then
+                    echo "$(echo $PR_RESPONSE | jq '.message')"
+                    echo "$(echo $PR_RESPONSE | jq '.errors[0].message')"
+                    exit 1
+                  fi
+
                   PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                   MERGE_STATUS=$(echo $PR_STATUS | jq '.mergeable')
 
                   echo "Checking mergeability of pull request"
                   if [ "$MERGE_STATUS" == "true" ]; then
                     echo "Pull Request can be merge automatically"
-                    curl -X PUT -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL}/merge -d '{"commit_title":"'"${BRANCH_NAME}"' merged", "commit_message":"commit_message"}'
-                    # CMT: Check response and then print 
-                    echo "Completed the Pull Request"
+                    curl -X PUT -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL}/merge -d '{"commit_title":"'"${BRANCH_NAME}"' merged"}'
+                    
+                    PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
+                    COMPLETION_STATUS=$(echo $PR_STATUS | jq '.merged')
+                    if [ "$COMPLETION_STATUS" == "true" ]; then
+                      echo "Completed the Pull Request"
+                    else
+                      echo "Pull Request is not completed"
+                      exit 1
+                    fi
                   elif [ "$MERGE_STATUS" == "false" ]; then
                     echo "Pull Request can not be merge automatically"
-                    exit 1
-                  else
-                    echo "Merge Status is unknown, please check if PR is created or not on GitHub"
                     exit 1
                   fi
 
@@ -127,20 +138,23 @@ stages:
                   echo "Raising PR to GitHub repo \"${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}\""
                   PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$GITHUB_REPO_USERNAME"':master","base":"'"${TARGET_BRANCH}"'","title":"'"${PR_TITLE}"'","body":"'"${PR_DESCRIPTION}"'"}')
                   PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
-                  # CMT: Print actual error when PR_URL is empty
+                  
+                  # Checking whether PR is created by checking non-empty value for PR_URL from PR_RESPONSE
+                  if [ -z "$PR_URL" ]; then
+                    echo "$(echo $PR_RESPONSE | jq '.message')"
+                    echo "$(echo $PR_RESPONSE | jq '.errors[0].message')"
+                    exit 1
+                  fi
+
                   PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                   MERGE_STATUS=$(echo $PR_STATUS | jq '.mergeable')
 
                   echo "Checking mergeability of pull request"
                   if [ "$MERGE_STATUS" == "true" ]; then
                     echo "Pull Request is raised. Please check it on github"
-                    # CMT: Print Pull Request link
+                    echo "$PR_URL"
                   elif [ "$MERGE_STATUS" == "false" ]; then
                     echo "Pull Request can not be merge automatically"
-                    exit 1
-                  else
-                    echo "Merge Status is unknown, please check if PR is created or not on GitHub"
-                    # CMT: How will we have merge status, if PR is not there on github?
                     exit 1
                   fi
 
