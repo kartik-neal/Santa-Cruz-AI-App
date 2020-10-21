@@ -41,10 +41,32 @@ stages:
                   
                   set -e
                   
+                  if [ -d "Santa-Cruz-AI-App" ]; then
+                    echo "Deleting the git directory as it already exists"
+                    sudo rm -rf Santa-Cruz-AI-App
+                  fi
+
                   if [ -d "UnifiedEdgeScenarios" ]; then
-                    echo "Deleting the directory as it already exists"
+                    echo "Deleting the git directory as it already exists"
                     sudo rm -rf UnifiedEdgeScenarios
                   fi
+
+                  # Clone the GitHub repo to local
+                  git clone "https://${GITHUB_REPO_USERNAME}:${GITHUB_ACCESS_TOKEN}@github.com/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}.git"
+
+                  cd ${GITHUB_REPO_NAME}/
+
+                  # Add remote upstream of target GitHUb repo
+                  git remote add upstream "https://github.com/${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}"
+                  git remote -v
+
+                  # Rebase GitHub repo with Target GitHub repo
+                  git fetch upstream
+                  git checkout master
+                  git merge upstream/master
+                  git push origin master
+
+                  cd ..
 
                   BRANCH_NAME=$(echo $(Branch) | cut -d'/' -f 3- )
                   
@@ -64,12 +86,44 @@ stages:
                   echo "Upload files to github in branch ${BRANCH_NAME}"
                   git push origin "${BRANCH_NAME}"
 
-                  # Get all remote branches
-                  git fetch
+                  # Raise the Pull request to GitHub repo's master branch from this new branch
+                  echo "Raising PR from branch \"${BRANCH_NAME}\" to master in GitHub repo \"${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}\""
+                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"${BRANCH_NAME}"'","base":"'"${TARGET_BRANCH}"'", "title":"Merge '"${BRANCH_NAME}"' changes"}')
+                  PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
+                  PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
+                  MERGE_STATUS=$(echo $PR_STATUS | jq '.mergeable')
 
-                  # Raise the Pull request to target GitHub repo from this new branch
-                  echo "Raising PR from head to base repo \"${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}\""
-                  curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$GITHUB_REPO_USERNAME"':'"${BRANCH_NAME}"'","base":"'"${TARGET_BRANCH}"'", "title":"'"${BRANCH_NAME}"' version"}'
+                  echo "Checking mergeability of pull request"
+                  if [ "$MERGE_STATUS" == "true" ]; then
+                    echo "Pull Request has no merge conflicts, can be merge automatically"
+                    curl -X PUT -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL}/merge -d '{"commit_title":"'"${BRANCH_NAME}"' merged", "commit_message":"commit_message"}'
+                    echo "Completed the Pull Request"
+                  elif [ "$MERGE_STATUS" == "false" ]; then
+                    echo "Pull Request has merge conflicts"
+                    exit 1
+                  else
+                    echo "Merge Status is unknown, please check if PR is created or not on GitHub"
+                    exit 1
+                  fi
+
+                  echo "New changes has been merged in master branch from branch ${BRANCH_NAME}"
+
+                  echo "Raising PR to GitHub repo \"${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}\""
+                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$GITHUB_REPO_USERNAME"':master","base":"'"${TARGET_BRANCH}"'", "title":"'"${BRANCH_NAME}"' version"}')
+                  PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
+                  PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
+                  MERGE_STATUS=$(echo $PR_STATUS | jq '.mergeable')
+
+                  echo "Checking mergeability of pull request"
+                  if [ "$MERGE_STATUS" == "true" ]; then
+                    echo "Pull Request has no merge conflicts, can be merge automatically"
+                  elif [ "$MERGE_STATUS" == "false" ]; then
+                    echo "Pull Request has merge conflicts"
+                    exit 1
+                  else
+                    echo "Merge Status is unknown, please check if PR is created or not on GitHub"
+                    exit 1
+                  fi
 
                   # Remove current branch files from local
                   cd ..
