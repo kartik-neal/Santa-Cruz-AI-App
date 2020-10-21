@@ -38,17 +38,33 @@ stages:
                 targetType: 'inline'
                 script: |
                   TARGET_BRANCH="master"
+                  BRANCH_NAME=$(echo $(Branch) | cut -d'/' -f 3- )
+                  PROJECT="UnifiedEdgeScenarios"
                   
                   set -e
                   
-                  if [ -d "Santa-Cruz-AI-App" ]; then
+                  if [[ $(az extension list --query "[?name=='azure-devops'].name" --output tsv | wc -c) -eq 0 ]]; then
+                    echo "$(info) Installing azure-devops extension"
+                    az extension add --name azure-devops
+                  fi
+
+                  if [ -d "${GITHUB_REPO_NAME}" ]; then
                     echo "Deleting the git directory as it already exists"
-                    sudo rm -rf Santa-Cruz-AI-App
+                    sudo rm -rf "${GITHUB_REPO_NAME}"
                   fi
 
                   if [ -d "UnifiedEdgeScenarios" ]; then
                     echo "Deleting the git directory as it already exists"
                     sudo rm -rf UnifiedEdgeScenarios
+                  fi
+
+                  echo ${DEVOPS_PERSONAL_ACCESS_TOKEN} | az devops login --org "https://dev.azure.com/AED-E2E-Experiences/"
+                  PR_DETAILS=$(az repos pr list --status "completed" --target-branch "$BRANCH_NAME" --project "$PROJECT" --top 1)
+                  PR_DESCRIPTION=$(echo $PR_DETAILS | jq -r '.[0].description')
+                  PR_TITLE=$(echo $PR_DETAILS | jq -r '.[0].title')
+
+                  if [ -z "$PR_DESCRIPTION" ]; then
+                    PR_DESCRIPTION="Merge latest changes from branch \"$BRANCH_NAME\""
                   fi
 
                   # Clone the GitHub repo to local
@@ -68,8 +84,6 @@ stages:
 
                   cd ..
 
-                  BRANCH_NAME=$(echo $(Branch) | cut -d'/' -f 3- )
-                  
                   # Clone the current release branch version to local
                   git clone -b "${BRANCH_NAME}" --single-branch "https://${DEVOPS_REPO_USERNAME}:${DEVOPS_PERSONAL_ACCESS_TOKEN}@dev.azure.com/AED-E2E-Experiences/UnifiedEdgeScenarios/_git/UnifiedEdgeScenarios"
                   echo "Cloned ${BRANCH_NAME} to local"
@@ -88,18 +102,18 @@ stages:
 
                   # Raise the Pull request to GitHub repo's master branch from this new branch
                   echo "Raising PR from branch \"${BRANCH_NAME}\" to master in GitHub repo \"${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}\""
-                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"${BRANCH_NAME}"'","base":"'"${TARGET_BRANCH}"'", "title":"Merge '"${BRANCH_NAME}"' changes"}')
+                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"${BRANCH_NAME}"'","base":"'"${TARGET_BRANCH}"'", "title":"'"${PR_TITLE}"'","body":"'"${PR_DESCRIPTION}"'"}')
                   PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
                   PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                   MERGE_STATUS=$(echo $PR_STATUS | jq '.mergeable')
 
                   echo "Checking mergeability of pull request"
                   if [ "$MERGE_STATUS" == "true" ]; then
-                    echo "Pull Request has no merge conflicts, can be merge automatically"
+                    echo "Pull Request can be merge automatically"
                     curl -X PUT -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL}/merge -d '{"commit_title":"'"${BRANCH_NAME}"' merged", "commit_message":"commit_message"}'
                     echo "Completed the Pull Request"
                   elif [ "$MERGE_STATUS" == "false" ]; then
-                    echo "Pull Request has merge conflicts"
+                    echo "Pull Request can not be merge automatically"
                     exit 1
                   else
                     echo "Merge Status is unknown, please check if PR is created or not on GitHub"
@@ -109,16 +123,16 @@ stages:
                   echo "New changes has been merged in master branch from branch ${BRANCH_NAME}"
 
                   echo "Raising PR to GitHub repo \"${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}\""
-                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$GITHUB_REPO_USERNAME"':master","base":"'"${TARGET_BRANCH}"'", "title":"'"${BRANCH_NAME}"' version"}')
+                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$GITHUB_REPO_USERNAME"':master","base":"'"${TARGET_BRANCH}"'","title":"'"${PR_TITLE}"'","body":"'"${PR_DESCRIPTION}"'"}')
                   PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
                   PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                   MERGE_STATUS=$(echo $PR_STATUS | jq '.mergeable')
 
                   echo "Checking mergeability of pull request"
                   if [ "$MERGE_STATUS" == "true" ]; then
-                    echo "Pull Request has no merge conflicts, can be merge automatically"
+                    echo "Pull Request can be merge automatically"
                   elif [ "$MERGE_STATUS" == "false" ]; then
-                    echo "Pull Request has merge conflicts"
+                    echo "Pull Request can not be merge automatically"
                     exit 1
                   else
                     echo "Merge Status is unknown, please check if PR is created or not on GitHub"
