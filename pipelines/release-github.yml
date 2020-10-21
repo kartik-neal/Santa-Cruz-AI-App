@@ -125,8 +125,9 @@ stages:
                     exit 1
                   fi
 
-                  # Remove current branch files from local
+                  # Remove current branch files and GitHub repo files from local
                   cd ..
                   sudo rm -rf UnifiedEdgeScenarios/
+                  sudo rm -rf ${GITHUB_REPO_NAME}/
 
                 workingDirectory: '$(System.DefaultWorkingDirectory)'
