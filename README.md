@@ -20,10 +20,10 @@ This application can execute against a Virtual Azure Eye AI Device in the cloud,
 
 **Please note: the current implementation runs as emulation in the cloud. A version for the physical Santa Cruz Devkit will be available soon!**
 ## Software emulation app topology
-![People Detector](docs/images/Software-Emulation.png)
+![People Detector](docs/images/Software-Emulation.PNG)
 
 ## Physical hardware app topology
-![People Detector](docs/images/Hardware-Topology.png)
+![People Detector](docs/images/Hardware-Topology.PNG)
 
 
 # Installation details
@@ -34,7 +34,7 @@ This reference open source application showcases best practices for AI security,
 
 This will redirect you to the Azure portal with this deployment page:
 
-![People Detector](docs/images/Custom-Deployment.png)
+![People Detector](docs/images/Custom-Deployment.PNG)
 #
 
 To deploy an emulation environment in the cloud, please enter the following parameters:
@@ -47,7 +47,7 @@ To deploy an emulation environment in the cloud, please enter the following para
 
 Once deployment is complete, you can launch the web application by navigating to the `Resource Group IoT` name selected above. You will see an Azure Web Services deployment which starts with `ues-eyeapp` followed by 4 random digits. Select this app, then chose the `Browse` button in the top left:
 
-![Web Application](docs/images/Web-App-Launch.png)
+![Web Application](docs/images/Web-App-Launch.PNG)
 
 Once the application loads, you will need to enter the password you entered at deployment time. The password is cached for subsequent visits to the same application.
 

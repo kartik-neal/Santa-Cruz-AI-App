@@ -19,28 +19,50 @@
 #16. Mariner Disk is present or not in Resource Group for VM.
 #17. Mariner VM is present or not in Resource Group for VM.
 
+
 # Stop execution on any error in script execution
 set -e
 
 ANY_FAILURES_OCCURRED="false"
 
+
+#-----------------------------------------------------------------------------------------
 # Define helper function for logging. This will change the Error text color to red
 printError() {
   echo "$(tput setaf 1)$1$(tput sgr0)"
   ANY_FAILURES_OCCURRED="true"
 }
 
-SETUP_VARIABLES_TEMPLATE_FILENAME="variables.template"
-
-if [ ! -f "$SETUP_VARIABLES_TEMPLATE_FILENAME" ]; then
-  printError "\"$SETUP_VARIABLES_TEMPLATE_FILENAME\" file is not present in current directory: \"$PWD\""
-  exit 1
+# To check whether the resource name contains prefix
+match() {
+if [[ "$1" =~ .*"$2".* ]]; then
+  echo "1"
 fi
+}
 
-# The following comment is for ignoring the source file check for shellcheck, as it does not support variable source file names currently
-# shellcheck source=variables.template
-# Read variable values from variables.template file in current directory
-source "$SETUP_VARIABLES_TEMPLATE_FILENAME"
+# To find which resources have the prefix
+search() {
+local_variable="${1}"
+shift
+local_array=("${@}")
+for name in "${local_array[@]}"
+do
+  flag=$(match "$name" "$local_variable")
+  if [ "$flag" == 1 ]; then
+     result="$name"
+  fi
+done
+echo "$result"
+}
+
+#-----------------------------------------------------------------------------------------
+USE_INTERACTIVE_LOGIN_FOR_AZURE="false"
+INSTALL_REQUIRED_PACKAGES="true"
+
+
+if [ -z "$USE_INTERACTIVE_LOGIN_FOR_AZURE" ]; then
+  USE_INTERACTIVE_LOGIN_FOR_AZURE="true"
+fi
 
 if [ -z "$INSTALL_REQUIRED_PACKAGES" ]; then
   INSTALL_REQUIRED_PACKAGES="true" 
@@ -51,9 +73,47 @@ RUN_WEBAPP_CHECKS="true"
 # Set the variable value to decide, Whether to perform test for Mariner VM setup or not, Default is true.
 RUN_VM_CHECKS="true"
 
-# Check value of INSTALL_REQUIRED_PACKAGES.
+IS_CURRENT_ENVIRONMENT_CLOUDSHELL="false"
+if [ "$POWERSHELL_DISTRIBUTION_CHANNEL" == "CloudShell" ]; then
+  IS_CURRENT_ENVIRONMENT_CLOUDSHELL="true"
+fi
+
+
+
+while [[ $# -gt 0 ]]; do
+    key="$1"
+
+    case $key in
+        --rg-iot)
+            RESOURCE_GROUP_IOT="$2"
+            shift # past argument
+            shift # past value
+            ;;
+        --rg-vm)
+            RESOURCE_GROUP_DEVICE="$2"
+            shift # past argument
+            shift # past value
+            ;;
+        --iothub-name)
+            IOTHUB_NAME="$2"
+            shift # past argument
+            shift # past value
+            ;; 
+        --device-name)
+            DEVICE_NAME="$2"
+            shift # past argument
+            shift # past value
+            ;;      
+    esac
+done
+
+if [ -z "$RESOURCE_GROUP_DEVICE" ]; then
+    RESOURCE_GROUP_DEVICE="$RESOURCE_GROUP_IOT"
+fi 
+
+# Check value of POWERSHELL_DISTRIBUTION_CHANNEL. This variable is present in Azure Cloud Shell environment.
 # There are different installation steps for Cloud Shell as it does not allow root access to the script
-if [ "$INSTALL_REQUIRED_PACKAGES" == "true" ]; then
+if [ "$IS_CURRENT_ENVIRONMENT_CLOUDSHELL" == "true" ]; then
 
   if [ -z "$(command -v sshpass)" ]; then
 
@@ -81,9 +141,53 @@ if [ "$INSTALL_REQUIRED_PACKAGES" == "true" ]; then
   fi
 
   # jq and timeout are pre-installed in the cloud shell
-fi
 
-echo "Using existing CloudShell login for Azure CLI"
+elif [ "$INSTALL_REQUIRED_PACKAGES" == "true" ]; then
+
+  if [ ! -z "$(command -v apt)" ]; then
+    PACKAGE_MANAGER="apt"
+  elif [ ! -z "$(command -v dnf)" ]; then
+    PACKAGE_MANAGER="dnf"
+  elif [ ! -z "$(command -v yum)" ]; then
+    PACKAGE_MANAGER="yum"
+  elif [ ! -z "$(command -v zypper)" ]; then
+    PACKAGE_MANAGER="zypper"
+  fi
+
+  if [ -z "$PACKAGE_MANAGER" ]; then
+    echo "[WARNING] The current machine does not have any of the following package managers installed: apt, yum, dnf, zypper."
+    echo "[WARNING] Package Installation step is being skipped. Please install the required packages manually"
+  else
+
+    echo "[INFO] Installing required packages"
+
+    if [ -z "$(command -v sshpass)" ]; then
+
+      echo "$(info) Installing sshpass"
+      sudo "$PACKAGE_MANAGER" install -y sshpass
+    fi
+
+    if [ -z "$(command -v jq)" ]; then
+
+      echo "$(info) Installing jq"
+      sudo "$PACKAGE_MANAGER" install -y jq
+    fi
+
+    if [ -z "$(command -v timeout)" ]; then
+
+      echo "$(info) Installing timeout"
+      sudo "$PACKAGE_MANAGER" install -y timeout
+      echo "$(info) Installed timeout"
+    fi
+
+    if [[ $(az extension list --query "[?name=='azure-iot'].name" --output tsv | wc -c) -eq 0 ]]; then
+      echo "[INFO] Installing azure-iot extension"
+      az extension add --name azure-iot
+    fi
+
+    echo "[INFO] Package Installation step is complete"
+  fi
+fi
 
 # Getting the details of subscriptions which user has access, in case when value is not provided in variable.template
 if [ -z "$SUBSCRIPTION_ID" ]; then
@@ -93,12 +197,9 @@ if [ -z "$SUBSCRIPTION_ID" ]; then
     
     SUBSCRIPTION_ID=$(az account list --query "[0].id" -o tsv)
     
-    if [ ${#subscriptions[*]} -gt 1 ]; then
+    if [ ${#subscriptions[*]} -gt 0 ]; then
         echo "[WARNING] User has access to more than one subscription, by default using first subscription: \"$SUBSCRIPTION_ID\""
     fi
-
-    # Writing the updated value back to variables file
-    sed -i 's#^\(SUBSCRIPTION_ID[ ]*=\).*#\1\"'"$SUBSCRIPTION_ID"'\"#g' "$SETUP_VARIABLES_TEMPLATE_FILENAME"
 fi
 
 echo "[INFO] Setting current subscription to $SUBSCRIPTION_ID"
@@ -106,6 +207,25 @@ echo "[INFO] Setting current subscription to $SUBSCRIPTION_ID"
 az account set --subscription "$SUBSCRIPTION_ID"
 
 echo "[INFO] Set current subscription to $SUBSCRIPTION_ID"
+
+# creating array of resource names if more than one exists in the same resource group
+mapfile -t IOTHUB_LIST < <(az iot hub list --resource-group "$RESOURCE_GROUP_IOT" --query "[?name].{Name:name}" --output tsv)
+mapfile -t STORAGE_ACCOUNT_LIST < <(az storage account list -g "$RESOURCE_GROUP_IOT" --query "[?name].name" --output tsv)
+mapfile -t APP_SERVICE_PLAN_LIST < <(az appservice plan list --resource-group "$RESOURCE_GROUP_IOT" --query "[?name].name" --output tsv)
+mapfile -t WEB_APP_LIST < <(az webapp list --resource-group "$RESOURCE_GROUP_IOT" --query "[?name].name" --output tsv)
+
+##  VARIABLES
+DISK_NAME="mariner"
+VM_NAME="marinervm"
+IOTHUB_NAME=$(search "azureeyeiothub" "${IOTHUB_LIST[@]}")
+DEVICE_NAME="azureEyeEdgeDevice"
+STORAGE_ACCOUNT_NAME=$(search "uesstorage" "${STORAGE_ACCOUNT_LIST[@]}")
+APP_SERVICE_PLAN_NAME=$(search "ues-eyeasp" "${APP_SERVICE_PLAN_LIST[@]}")
+WEBAPP_NAME=$(search "ues-eyeapp" "${WEB_APP_LIST[@]}")
+
+mapfile -t DEPLOYMENT_NAME_LIST < <(az iot edge deployment list --hub-name "$IOTHUB_NAME" --query "[?id].{Id:id}" --output tsv)
+DEPLOYMENT_NAME=$(search "eye-deployment" "${DEPLOYMENT_NAME_LIST[@]}")
+
 
 # Checks for Mariner VM setup;
 if [ "$RUN_VM_CHECKS" == "true" ]; then
@@ -250,6 +370,13 @@ else
   printError "Failed: Deployment is not Applied on Edge Device \"$DEVICE_NAME\". "
 
 fi
+
+CURRENT_IP_ADDRESS=$(curl -s https://ip4.seeip.org/)
+
+echo "$(info) Adding current machine IP address \"$CURRENT_IP_ADDRESS\" in Network Security Group firewall"
+NSG_NAME="default-NSG"
+# Create a NSG Rule to allow SSH for current machine
+az network nsg rule create --name "AllowSSH" --nsg-name "$NSG_NAME" --priority 100 --resource-group "$RESOURCE_GROUP_DEVICE" --destination-port-ranges 22 --source-address-prefixes "$CURRENT_IP_ADDRESS" --output "none"
 
 # Check the status of IoT Edge Service
 EDGE_DEVICE_PUBLIC_IP=$(az vm show --show-details --resource-group "$RESOURCE_GROUP_DEVICE" --name "$VM_NAME" --query "publicIps" --output tsv)
