@@ -63,8 +63,12 @@ stages:
                   PR_DESCRIPTION=$(echo $PR_DETAILS | jq -r '.[0].description')
                   PR_TITLE=$(echo $PR_DETAILS | jq -r '.[0].title')
 
-                  if [ -z "$PR_DESCRIPTION" ]; then
-                    PR_DESCRIPTION="Merge latest changes from branch \"$BRANCH_NAME\""
+                  if [ "$PR_DESCRIPTION" == "null" ]; then
+                    PR_DESCRIPTION="Merge latest changes from branch $BRANCH_NAME"
+                  fi
+
+                  if [ "$PR_TITLE" == "null" ]; then
+                    PR_TITLE="$BRANCH_NAME version"
                   fi
 
                   # Clone the GitHub repo to local
@@ -74,7 +78,6 @@ stages:
 
                   # Add remote upstream of target GitHUb repo
                   git remote add upstream "https://github.com/${TARGET_GITHUB_REPO_USERNAME}/${TARGET_GITHUB_REPO_NAME}"
-                  git remote -v
 
                   # Rebase GitHub repo with Target GitHub repo
                   git fetch upstream
@@ -102,16 +105,21 @@ stages:
 
                   # Raise the Pull request to GitHub repo's master branch from this new branch
                   echo "Raising PR from branch \"${BRANCH_NAME}\" to master in GitHub repo \"${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}\""
-                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"${BRANCH_NAME}"'","base":"'"${TARGET_BRANCH}"'", "title":"'"${PR_TITLE}"'","body":"'"${PR_DESCRIPTION}"'"}')
+                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$BRANCH_NAME"'","base":"'"$TARGET_BRANCH"'","title":"'"$PR_TITLE"'","body":"'"$PR_DESCRIPTION"'"}')
                   PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
+
                   
                   # Checking whether PR is created by checking non-empty value for PR_URL from PR_RESPONSE
-                  if [ -z "$PR_URL" ]; then
+                  if [ "$PR_URL" == "null" ]; then
                     echo "The following is the error message for PR:"
                     echo "$(echo $PR_RESPONSE | jq '.message')"
                     echo "$(echo $PR_RESPONSE | jq '.errors[0].message')"
                     exit 1
                   fi
+
+                  echo "Pull Request is created on GitHub to merge latest changes"
+                  # Adding delay for checking the status of PR
+                  sleep 10s
 
                   PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                   MERGE_STATUS=$(echo $PR_STATUS | jq '.mergeable')
@@ -119,12 +127,11 @@ stages:
                   echo "Checking mergeability of pull request"
                   if [ "$MERGE_STATUS" == "true" ]; then
                     echo "Pull Request can be merge automatically"
-                    curl -X PUT -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL}/merge -d '{"commit_title":"'"${BRANCH_NAME}"' merged"}'
+                    PR_STATUS=$(curl -X PUT -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL}/merge -d '{"commit_title":"'"${BRANCH_NAME}"' merged"}')
                     
-                    PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                     COMPLETION_STATUS=$(echo $PR_STATUS | jq '.merged')
                     if [ "$COMPLETION_STATUS" == "true" ]; then
-                      echo "Completed the Pull Request"
+                      echo "Pull Request successfully merged"
                     else
                       echo "Pull Request is not completed"
                       exit 1
@@ -141,12 +148,15 @@ stages:
                   PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
                   
                   # Checking whether PR is created by checking non-empty value for PR_URL from PR_RESPONSE
-                  if [ -z "$PR_URL" ]; then
+                  if [ "$PR_URL" == "null" ]; then
                     echo "The following is the error message for PR:"
                     echo "$(echo $PR_RESPONSE | jq '.message')"
                     echo "$(echo $PR_RESPONSE | jq '.errors[0].message')"
                     exit 1
                   fi
+
+                  # Adding delay for checking the status of PR
+                  sleep 10s
 
                   PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                   MERGE_STATUS=$(echo $PR_STATUS | jq '.mergeable')
