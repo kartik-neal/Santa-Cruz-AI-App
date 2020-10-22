@@ -64,11 +64,11 @@ stages:
                   PR_TITLE=$(echo $PR_DETAILS | jq -r '.[0].title')
 
                   if [ "$PR_DESCRIPTION" == "null" ]; then
-                    PR_DESCRIPTION="Merge latest changes from branch \"$BRANCH_NAME\""
+                    PR_DESCRIPTION="Merge"
                   fi
 
                   if [ "$PR_TITLE" == "null" ]; then
-                    PR_TITLE="$BRANCH_NAME version"
+                    PR_TITLE="$BRANCH_NAME"
                   fi
 
                   # Clone the GitHub repo to local
@@ -105,8 +105,8 @@ stages:
 
                   # Raise the Pull request to GitHub repo's master branch from this new branch
                   echo "Raising PR from branch \"${BRANCH_NAME}\" to master in GitHub repo \"${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}\""
-                  #PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$BRANCH_NAME"'","base":"'"$TARGET_BRANCH"'","title":"'"$PR_TITLE"'","body":"'"$PR_DESCRIPTION"'"}')
-                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$BRANCH_NAME"'","base":"'"$TARGET_BRANCH"'"}')
+                  PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$BRANCH_NAME"'","base":"'"$TARGET_BRANCH"'","title":"'"$PR_TITLE"'","body":"'"$PR_DESCRIPTION"'"}')
+                  #PR_RESPONSE=$(curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" "https://api.github.com/repos/${GITHUB_REPO_USERNAME}/${GITHUB_REPO_NAME}/pulls" -d '{"head":"'"$BRANCH_NAME"'","base":"'"$TARGET_BRANCH"'"}')
                   PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
                   echo "$PR_RESPONSE"
                   echo "$PR_TITLE"
