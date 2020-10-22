@@ -127,12 +127,12 @@ stages:
                   echo "Checking mergeability of pull request"
                   if [ "$MERGE_STATUS" == "true" ]; then
                     echo "Pull Request can be merge automatically"
-                    curl -X PUT -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL}/merge -d '{"commit_title":"'"${BRANCH_NAME}"' merged"}'
+                    PR_STATUS=$(curl -X PUT -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL}/merge -d '{"commit_title":"'"${BRANCH_NAME}"' merged"}')
                     
-                    PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
+                    # PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                     COMPLETION_STATUS=$(echo $PR_STATUS | jq '.merged')
                     if [ "$COMPLETION_STATUS" == "true" ]; then
-                      echo "Completed the Pull Request"
+                      echo "Pull Request successfully merged"
                     else
                       echo "Pull Request is not completed"
                       exit 1
@@ -155,6 +155,9 @@ stages:
                     echo "$(echo $PR_RESPONSE | jq '.errors[0].message')"
                     exit 1
                   fi
+
+                  # Adding delay for checking the status of PR
+                  sleep 10s
 
                   PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                   MERGE_STATUS=$(echo $PR_STATUS | jq '.mergeable')
