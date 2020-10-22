@@ -63,11 +63,11 @@ stages:
                   PR_DESCRIPTION=$(echo $PR_DETAILS | jq -r '.[0].description')
                   PR_TITLE=$(echo $PR_DETAILS | jq -r '.[0].title')
 
-                  if [ -z "$PR_DESCRIPTION" ]; then
+                  if [ "$PR_DESCRIPTION" == "null" ]; then
                     PR_DESCRIPTION="Merge latest changes from branch \"$BRANCH_NAME\""
                   fi
 
-                  if [ -z "$PR_TITLE" ]; then
+                  if [ "$PR_TITLE" == "null" ]; then
                     PR_TITLE="$BRANCH_NAME version"
                   fi
 
@@ -110,7 +110,7 @@ stages:
                   PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
                   
                   # Checking whether PR is created by checking non-empty value for PR_URL from PR_RESPONSE
-                  if [ -z "$PR_URL" ]; then
+                  if [ "$PR_URL" == "null" ]; then
                     echo "The following is the error message for PR:"
                     echo "$(echo $PR_RESPONSE | jq '.message')"
                     echo "$(echo $PR_RESPONSE | jq '.errors[0].message')"
@@ -145,7 +145,7 @@ stages:
                   PR_URL=$(echo $PR_RESPONSE | jq '.url' | cut -d'"' -f 2)
                   
                   # Checking whether PR is created by checking non-empty value for PR_URL from PR_RESPONSE
-                  if [ -z "$PR_URL" ]; then
+                  if [ "$PR_URL" == "null" ]; then
                     echo "The following is the error message for PR:"
                     echo "$(echo $PR_RESPONSE | jq '.message')"
                     echo "$(echo $PR_RESPONSE | jq '.errors[0].message')"
