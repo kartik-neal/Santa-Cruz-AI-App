@@ -129,7 +129,6 @@ stages:
                     echo "Pull Request can be merge automatically"
                     PR_STATUS=$(curl -X PUT -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL}/merge -d '{"commit_title":"'"${BRANCH_NAME}"' merged"}')
                     
-                    # PR_STATUS=$(curl -X GET -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${GITHUB_ACCESS_TOKEN}"  ${PR_URL})
                     COMPLETION_STATUS=$(echo $PR_STATUS | jq '.merged')
                     if [ "$COMPLETION_STATUS" == "true" ]; then
                       echo "Pull Request successfully merged"
