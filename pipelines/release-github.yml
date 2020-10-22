@@ -64,11 +64,11 @@ stages:
                   PR_TITLE=$(echo $PR_DETAILS | jq -r '.[0].title')
 
                   if [ "$PR_DESCRIPTION" == "null" ]; then
-                    PR_DESCRIPTION="Merge"
+                    PR_DESCRIPTION="Merge  latest changes from branch $BRANCH_NAME"
                   fi
 
                   if [ "$PR_TITLE" == "null" ]; then
-                    PR_TITLE="$BRANCH_NAME"
+                    PR_TITLE="$BRANCH_NAME version"
                   fi
 
                   # Clone the GitHub repo to local
